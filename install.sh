@@ -19,6 +19,44 @@ set -e
 # Backup the file, jsut in case
 cp install.sh /
 
+# Store the OS version, so we can override it with a commandline option
+OSVER=`uname -r`
+
+# Setup switches that can be changed by commandline options
+# Set to YES to use Checkout, rather than http/cvs update
+CHECKOUT=NO
+
+# Build base only, no ports
+# Set to NO to not build ports
+BUILDPORTS=YES
+
+# Process command string
+set +e
+set +u
+ARGS=`getopt v: $*`
+
+if [ $? -ne 0 ]; then
+	echo $0 \[-v version\]
+	echo -v version	Set the version to use for key creation/CVS update
+	exit 2
+fi
+set -e
+set -u
+set -- $ARGS
+while [ $# -ne 0 ]
+do
+	case "$1"
+	in
+		-v)
+			OSVER=$2
+			CHECKOUT=YES
+			BUILDPORTS=NO
+			shift; shift;;
+		--)
+			shift; break;;
+	esac
+done
+
 # Site specific stuff goes here, to make management of different
 # scripts for different sites easier.
 
@@ -26,9 +64,9 @@ cp install.sh /
 SIGNATURENAME=berserk
 
 # The FTP sites to download from
-FTP_HOSTS[0]=http://192.168.36.1/pub/OpenBSD/`uname -r`
-FTP_HOSTS[1]=http://192.168.36.1/pub/OpenBSD/`uname -r`
-FTP_HOSTS[2]=http://ftp.openbsd.org/pub/OpenBSD/`uname -r`
+FTP_HOSTS[0]=http://192.168.36.1/pub/OpenBSD/$OSVER
+FTP_HOSTS[1]=http://192.168.36.1/pub/OpenBSD/$OSVER
+FTP_HOSTS[2]=http://ftp.openbsd.org/pub/OpenBSD/$OSVER
 
 # The files we use for signatures downloaded from each FTP site.
 # They must match the FTP sites, and can not be called "unset"
@@ -93,10 +131,10 @@ ECDSAMD5[2]="(ECDSA) MD5:9b:39:30:30:63:01:fa:ec:66:4f:63:3d:9a:7e:76:38"
 ED25519MD5[2]="(ED25519) MD5:e2:38:fc:a8:a0:17:ad:7b:03:8a:49:b7:94:40:a0:d5"
 
 # Calculate the CVS tag based on the version of OpenBSD installed
-CVS_TAG=OPENBSD_`uname -r | sed 's/\./_/g'`
+CVS_TAG=OPENBSD_`echo $OSVER | sed 's/\./_/g'`
 
 # The filename of the official OpenBSD signature for this release
-OBSD_SIG_FILE=openbsd-`uname -r | sed 's/\.//g'`-base.pub
+OBSD_SIG_FILE=openbsd-`echo $OSVER | sed 's/\.//g'`-base.pub
 
 # OpenBSD's /bin/sh does not have pushd/popd, so jsut remember where we
 # were when we started.
@@ -112,16 +150,16 @@ UNPACK_DIR=$CURRENT_DIR/unpack
 # Where we create the pub directory
 SITE_DEST=$CURRENT_DIR/pub
 # This is the location for all the release files
-SITE_LOCATION=$SITE_DEST/OpenBSD/`uname -r`
+SITE_LOCATION=$SITE_DEST/OpenBSD/$OSVER
 
 # Grab the major and minor versions of OpenBSD so we can use it for 
 # CVS tags, Signature names, etc
-OPENBSDMAJOR=`uname -r | sed 's/^\([^.]*\)\..*/\1/g'`
-OPENBSDMINOR=`uname -r | sed 's/^[^.]*\.\(.*\)/\1/g'`
+OPENBSDMAJOR=`echo $OSVER| sed 's/^\([^.]*\)\..*/\1/g'`
+OPENBSDMINOR=`echo $OSVER| sed 's/^[^.]*\.\(.*\)/\1/g'`
 
 # The OpenBSD version as a string without spaces, used for signature names, to
 # match what the OpenBSD team use
-OPENBSDVER=`uname -r | sed 's/^\([0-9]*\)\.\([0-9]\)/\1\2/g'`
+OPENBSDVER=`echo $OSVER | sed 's/^\([0-9]*\)\.\([0-9]\)/\1\2/g'`
 # The version of the next version of OpenBSD. OpenBSD keep the signatures for
 # this version and the next version.
 OPENBSDNEXTVER=`expr $OPENBSDVER + 1`
@@ -356,6 +394,24 @@ update_cvs ()
 	unset old_pwd
 }
 
+# $1 is the destination's parent directory
+# $2 is the CVS repository to checkout
+#
+# example:
+# checkout_cvs unpack src
+# will checkout src to unpac/src
+checkout_cvs ()
+{
+	touch $CVS_LOGFILE
+	log checkout $2 | tee -a $CVS_LOGFILE
+	old_pwd=`pwd`
+	cd $1
+	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} co -r $CVS_TAG -P $2 | tee -a $CVS_LOGFILE
+	log Finish check out $2 | tee -a $CVS_LOGFILE
+	cd $old_pwd
+	unset old_pwd
+}
+
 # $1 is the directory
 # $2 is the filename
 # $3 is the regex
@@ -530,6 +586,7 @@ generate_sig ()
 	fi
 }
 
+
 DATESTRING=`date "+%Y%m%d"`
 
 echo "Ignore the \"cannot find module \`/stc\'\" message."
@@ -551,7 +608,6 @@ fi
 set +e
 cvs -qd ${CVS_HOSTS[$CVS_HOST_NUMBER]} co /stc
 set -e
-set -u
 
 log "## Begin Build"
 
@@ -580,44 +636,53 @@ if is_atleast_version 5 5 ; then
 
 	echo 'SIGNING_PARAMETERS=-s signify -s '$THISPKGSIG'.sec' > /etc/mk.conf
 fi
-# Get the source
-if is_atleast_version 5 5 ; then
-	get_signatures
-	verify_signature_files
-fi
-
-download_file -v src.tar.gz
-download_file -v sys.tar.gz
-download_file -v ports.tar.gz
-download_file -v xenocara.tar.gz
 
 log Removing unpacked sources
 rm -rf $UNPACK_DIR
 
 mkdir -p $UNPACK_DIR
-cd $UNPACK_DIR
 
-mkdir src
+if [ $CHECKOUT = NO ]; then
+	 
+	# Get the source
+	if is_atleast_version 5 5 ; then
+		get_signatures
+		verify_signature_files
+	fi
 
-# Untar the source
-cd $UNPACK_DIR/src
-log Unpacking src
-tar -xzf $CURRENT_DIR/src.tar.gz
+	download_file -v src.tar.gz
+	download_file -v sys.tar.gz
+	download_file -v ports.tar.gz
+	download_file -v xenocara.tar.gz
 
-log Unpacking sys
-tar -xzf $CURRENT_DIR/sys.tar.gz
-cd $UNPACK_DIR
+	cd $UNPACK_DIR
 
-log Unpacking xenocara
-tar -xzf $CURRENT_DIR/xenocara.tar.gz
+	mkdir src
 
-log Unpacking ports
-tar -xzf $CURRENT_DIR/ports.tar.gz
+	# Untar the source
+	cd $UNPACK_DIR/src
+	log Unpacking src
+	tar -xzf $CURRENT_DIR/src.tar.gz
 
-# Update the source
-update_cvs $UNPACK_DIR/src
-update_cvs $UNPACK_DIR/xenocara
-update_cvs $UNPACK_DIR/ports
+	log Unpacking sys
+	tar -xzf $CURRENT_DIR/sys.tar.gz
+	cd $UNPACK_DIR
+
+	log Unpacking xenocara
+	tar -xzf $CURRENT_DIR/xenocara.tar.gz
+
+	log Unpacking ports
+	tar -xzf $CURRENT_DIR/ports.tar.gz
+
+	# Update the source
+	update_cvs $UNPACK_DIR/src
+	update_cvs $UNPACK_DIR/xenocara
+	update_cvs $UNPACK_DIR/ports
+else
+	checkout_cvs $UNPACK_DIR src
+	checkout_cvs $UNPACK_DIR xenocara
+	checkout_cvs $UNPACK_DIR ports
+fi	
 
 update_cvs_to_version $UNPACK_DIR/ports devel/p5-Error 5 7
 update_cvs_to_version $UNPACK_DIR/ports lang/ruby/2.0 5 7
@@ -799,21 +864,24 @@ unset DESTDIR
 RELEASEDIR=${RELEASEDIRX}
 unset RELEASEDIRX
 
-install_ports
-
-PKGDIR=/usr/ports/packages/`machine -a`/all
-
-cd ${PKGDIR}
-/bin/ls -1 >index.txt
-
 cd ~
 mkdir -p $SITE_LOCATION/`machine -a`
 cp "${RELEASEDIR}/"* "$SITE_LOCATION/`machine -a`"
-mkdir -p $SITE_LOCATION/packages/`machine -a`
-cp "${PKGDIR}/"* $SITE_LOCATION/packages/`machine -a`
 
+if [ $BUILDPORTS = YES ]; then
+
+	install_ports
+
+	PKGDIR=/usr/ports/packages/`machine -a`/all
+
+	cd ${PKGDIR}
+	/bin/ls -1 >index.txt
+
+	mkdir -p $SITE_LOCATION/packages/`machine -a`
+	cp "${PKGDIR}/"* $SITE_LOCATION/packages/`machine -a`
+fi
 cd ~
 
 log Creating archive...
-tar -czf "OpenBSD-`uname -r`-`machine -a`-$DATESTRING.tar.gz" pub
+tar -czf "OpenBSD-$OSVER-`machine -a`-$DATESTRING.tar.gz" pub
 log "## Complete Build"
