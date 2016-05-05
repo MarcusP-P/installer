@@ -16,6 +16,9 @@ set -u
 # Stop if something fails
 set -e
 
+# We use this variable to calculate the interval between log entries
+LASTLOG=`date +%s`
+
 # Backup the file, jsut in case
 cp install.sh /
 
@@ -178,7 +181,20 @@ NEXTPKGSIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDNEXTVER-pkg
 # message: the message to log.
 log ()
 {
-	echo "$* (`date`)" | tee -a $BUILD_LOGFILE
+	CURRENTLOG=`date +%s`
+	DURATION=`echo $CURRENTLOG - $LASTLOG | bc`
+	HOURS=`echo $DURATION / 3600 | bc`
+	REMAINDER=`echo $DURATION % 3600 | bc`
+	MINUTES=`echo $REMAINDER / 60 | bc`
+	SECONDS=`echo $REMAINDER % 60 | bc`
+	echo "$* (`date`) Elapsed: ` printf "%02s\n" $HOURS`:`printf "%02s\n" $MINUTES`:`printf "%02s\n" $SECONDS`" | tee -a $BUILD_LOGFILE
+	LASTLOG=`date +%s`
+	unset CURRENTLOG
+	unset DURATION
+	unset HOURS
+	unset REMAINDER
+	unset MINUTES
+	unset SECONDS
 }
 
 # download_file [-f] [-v] filename
