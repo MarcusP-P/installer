@@ -710,12 +710,8 @@ fi
 
 update_cvs_to_version $UNPACK_DIR/ports devel/p5-Error 5 7
 update_cvs_to_version $UNPACK_DIR/ports lang/ruby/2.0 5 7
-if ! is_atleast_version 5 9 ; then
-	update_cvs_to_date $UNPACK_DIR/ports mail/p5-Email-MIME "Wed Sep 23 14:00:00 2015 UTC"
-fi
-if ! is_atleast_version 5 9 ; then
-	update_cvs_to_date $UNPACK_DIR/ports sysutils/p5-File-Which "Fri Aug 14 17:00:00 2015 UTC"
-fi
+update_cvs_to_version $UNPACK_DIR/ports mail/p5-Email-MIME 5 9
+update_cvs_to_version $UNPACK_DIR/ports sysutils/p5-File-Which 5 9
 
 # Change the download URL to the new one. We no longer need to cvs update to
 # a later version of OpenBSD's Makefile
