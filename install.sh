@@ -181,15 +181,15 @@ NEXTPKGSIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDNEXTVER-pkg
 # message: the message to log.
 log ()
 {
-	CURRENTLOG=`date +%s`
-	DURATION=`echo $CURRENTLOG - $LASTLOG | bc`
-	HOURS=`echo $DURATION / 3600 | bc`
-	REMAINDER=`echo $DURATION % 3600 | bc`
-	MINUTES=`echo $REMAINDER / 60 | bc`
-	SECONDS=`echo $REMAINDER % 60 | bc`
-	echo "$* (`date`) Elapsed: ` printf "%02s\n" $HOURS`:`printf "%02s\n" $MINUTES`:`printf "%02s\n" $SECONDS`" | tee -a $BUILD_LOGFILE
+	currentlog=`date +%s`
+	duration=`echo $currentlog - $LASTLOG | bc`
+	hours=`echo $duration / 3600 | bc`
+	remainder=`echo $duration % 3600 | bc`
+	minutes=`echo $remainder / 60 | bc`
+	seconds=`echo $remainder % 60 | bc`
+	echo "$* (`date`) Elapsed: ` printf "%02s\n" $hours`:`printf "%02s\n" $minutes`:`printf "%02s\n" $seconds`" | tee -a $BUILD_LOGFILE
 	LASTLOG=`date +%s`
-	unset CURRENTLOG
+	unset currentlog
 	unset DURATION
 	unset HOURS
 	unset REMAINDER
@@ -401,11 +401,13 @@ rebuild_array ()
 update_cvs ()
 {
 	touch $CVS_LOGFILE
-	log Updating $1 | tee -a $CVS_LOGFILE
+	log Updating $1 
+	echo "Updating $1 (`date`)"| tee -a $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r $CVS_TAG -Pd | tee -a $CVS_LOGFILE
-	log Finish updating $1 | tee -a $CVS_LOGFILE
+	log Finish updating $1 
+	echo "Finish updating $1 (`date`)" | tee -a $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
 }
@@ -419,11 +421,13 @@ update_cvs ()
 checkout_cvs ()
 {
 	touch $CVS_LOGFILE
-	log checkout $2 | tee -a $CVS_LOGFILE
+	log checkout $2 
+	echo "checkout $2 (`date`)"| tee -a $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} co -r $CVS_TAG -P $2 | tee -a $CVS_LOGFILE
-	log Finish check out $2 | tee -a $CVS_LOGFILE
+	log Finish check out $2
+	echo "Finish check out $2 (`date`)" | tee -a $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
 }
@@ -466,13 +470,15 @@ update_cvs_to_version ()
 		return 0
 	fi
 	if [ ! -d $1/$2 ]; then
-		log $1/$2 does not exist, no need to update to OPENBSD_${3}_${4} | tee -a $CVS_LOGFILE
+		log $1/$2 does not exist, no need to update to OPENBSD_${3}_${4}
+		echo "$1/$2 does not exist, no need to update to OPENBSD_${3}_${4} (`date`)" | tee -a $CVS_LOGFILE
 
 		return 0
 	fi
 
 	touch $CVS_LOGFILE
-	log Updating $1/$2 to OPENBSD_${3}_${4} | tee -a $CVS_LOGFILE
+	log Updating $1/$2 to OPENBSD_${3}_${4}
+	echo "Updating $1/$2 to OPENBSD_${3}_${4} (`date`)" | tee -a $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1/$2
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r OPENBSD_${3}_${4} -Pd | tee -a $CVS_LOGFILE
@@ -493,11 +499,13 @@ update_cvs_to_date ()
 {
 
 	touch $CVS_LOGFILE
-	log Updating $1/$2 to HEAD | tee -a $CVS_LOGFILE
+	log Updating $1/$2 to HEAD
+	echo "Updating $1/$2 to HEAD (`date`)" | tee -a $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1/$2
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r HEAD -Pd | tee -a $CVS_LOGFILE
-	log Updating $1/$2 to ${3} | tee -a $CVS_LOGFILE
+	log Updating $1/$2 to ${3}
+	echo "Updating $1/$2 to ${3} (`date`)" | tee -a $CVS_LOGFILE
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -D "${3}" -Pd | tee -a $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
@@ -846,7 +854,7 @@ if [ -d /usr/src/distrib/$(machine -a)/iso ]; then
 	cd /usr/src/distrib/$(machine -a)/iso
 	log make clean
 	make clean
-	log make ISO | tee -a $BUILD_LOGFILE
+	log make ISO
 	make RELXDIR=${RELEASEDIR} RELDIR=${RELEASEDIR}
 
 	cp obj/install* ${RELEASEDIR}
