@@ -10,6 +10,8 @@
 # Add public signatures in install media
 # Create functions for uninstall, removing old unpack, sources, etc.
 # Create cleanup paramater, that jsut cleans up
+# Move cleanups of /usr/src, /usr/xenocara, /usr/ports, /usr/obj, /usr/xobj
+#      /usr/dist /usr/dist-base /usr/dist-x /usr/release
 
 # Crash on unset variables
 set -u
