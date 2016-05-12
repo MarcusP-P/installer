@@ -8,15 +8,123 @@
 # TODO:
 # Copy public signatures across
 # Add public signatures in install media
-# Create functions for uninstall, removing old unpack, sources, etc.
-# Create cleanup paramater, that jsut cleans up
-# Move cleanups of /usr/src, /usr/xenocara, /usr/ports, /usr/obj, /usr/xobj
-#      /usr/dist /usr/dist-base /usr/dist-x /usr/release
 
 # Crash on unset variables
 set -u
 # Stop if something fails
 set -e
+
+# OpenBSD's /bin/sh does not have pushd/popd, so jsut remember where we
+# were when we started.
+CURRENT_DIR=`pwd`
+
+# Where we keep the logfiles.
+CVS_LOGFILE=$CURRENT_DIR/cvsupdate.log
+BUILD_LOGFILE=$CURRENT_DIR/build.log
+
+# Where we do our temporary unpack of the source directories to CVS update them
+UNPACK_DIR=$CURRENT_DIR/unpack
+
+# Where we create the pub directory
+SITE_DEST=$CURRENT_DIR/pub
+
+# Locations that making a release uses
+RELDEST=/usr/dest
+RELDESTBASE=${RELDEST}-base
+RELDESTX=${RELDEST}-x
+RELFINAL=/usr/release
+
+# Grab the major and minor versions of OpenBSD so we can use it for 
+# log message
+# Write a message to the log, and also display it to the screen.
+# message: the message to log.
+log ()
+{
+	currentlog=`date +%s`
+	duration=`echo $currentlog - $LASTLOG | bc`
+	hours=`echo $duration / 3600 | bc`
+	remainder=`echo $duration % 3600 | bc`
+	minutes=`echo $remainder / 60 | bc`
+	seconds=`echo $remainder % 60 | bc`
+	echo "$* (`date`) Elapsed: ` printf "%02s\n" $hours`:`printf "%02s\n" $minutes`:`printf "%02s\n" $seconds`" | tee -a $BUILD_LOGFILE
+	LASTLOG=`date +%s`
+	unset currentlog
+	unset DURATION
+	unset HOURS
+	unset REMAINDER
+	unset MINUTES
+	unset SECONDS
+}
+
+# Cleanup everything
+clean ()
+{
+	cleanpackages
+	cleanwork
+	cleanobj
+	cleanrel
+	cleansrc
+}
+
+# Remove installed packages
+cleanpackages ()
+{
+	log Uninstalling Packages
+
+	while [ `pkg_info -q | grep -v -- -firmware- | wc -l ` -ne 0 ] ; do
+		pkg_delete `pkg_info -tq`
+	done
+	log Finish cleaning packages
+}
+
+# Clean Working directories
+cleanwork ()
+{
+	log Removing Old pub
+
+	rm -rf $SITE_DEST
+
+	log Finish Remogng Old Pub
+
+	log Removing unpacked sources
+	rm -rf $UNPACK_DIR
+
+	log Finish Removing unpacked sources
+}
+
+# Cleanup the source directories
+cleansrc ()
+{
+	log Removing old sources
+	cd /usr/src
+
+	rm -rf *
+
+	cd /usr
+	rm -rf xenocara
+
+	rm -rf ports
+	log Finish Removing old sources
+}
+
+# Clean object directories
+cleanobj ()
+{
+	log Cleaning Object Files	
+	rm -rf /usr/obj/*
+	rm -rf /usr/xobj/*
+}
+
+#Clean teh distribution directories
+cleanrel ()
+{
+	log Clean Release Targets
+	rm -rf $RELDEST
+	rm -rf $RELDESTBASE
+	rm -rf $RELDESTX
+	rm -rf $RELFINAL
+	log Finish Clean Release
+}
 
 # We use this variable to calculate the interval between log entries
 LASTLOG=`date +%s`
@@ -38,10 +146,11 @@ BUILDPORTS=YES
 # Process command string
 set +e
 set +u
-ARGS=`getopt v: $*`
+ARGS=`getopt v:x $*`
 
 if [ $? -ne 0 ]; then
 	echo $0 \[-v version\]
+	echo -x		Cleanup all the directories and exit
 	echo -v version	Set the version to use for key creation/CVS update
 	exit 2
 fi
@@ -52,6 +161,10 @@ while [ $# -ne 0 ]
 do
 	case "$1"
 	in
+		-x)
+			clean
+			exit
+			shift; shift;;
 		-v)
 			OSVER=$2
 			CHECKOUT=YES
@@ -135,29 +248,15 @@ DSAMD5[2]="(DSA) MD5:46:df:59:8c:e9:e3:5d:2c:1d:e3:d8:9f:61:8a:3c:ab"
 ECDSAMD5[2]="(ECDSA) MD5:9b:39:30:30:63:01:fa:ec:66:4f:63:3d:9a:7e:76:38"
 ED25519MD5[2]="(ED25519) MD5:e2:38:fc:a8:a0:17:ad:7b:03:8a:49:b7:94:40:a0:d5"
 
+# This is the location for all the release files
+SITE_LOCATION=$SITE_DEST/OpenBSD/$OSVER
+
 # Calculate the CVS tag based on the version of OpenBSD installed
 CVS_TAG=OPENBSD_`echo $OSVER | sed 's/\./_/g'`
 
 # The filename of the official OpenBSD signature for this release
 OBSD_SIG_FILE=openbsd-`echo $OSVER | sed 's/\.//g'`-base.pub
 
-# OpenBSD's /bin/sh does not have pushd/popd, so jsut remember where we
-# were when we started.
-CURRENT_DIR=`pwd`
-
-# Where we keep the logfiles.
-CVS_LOGFILE=$CURRENT_DIR/cvsupdate.log
-BUILD_LOGFILE=$CURRENT_DIR/build.log
-
-# Where we do our temporary unpack of the source directories to CVS update them
-UNPACK_DIR=$CURRENT_DIR/unpack
-
-# Where we create the pub directory
-SITE_DEST=$CURRENT_DIR/pub
-# This is the location for all the release files
-SITE_LOCATION=$SITE_DEST/OpenBSD/$OSVER
-
-# Grab the major and minor versions of OpenBSD so we can use it for 
 # CVS tags, Signature names, etc
 OPENBSDMAJOR=`echo $OSVER| sed 's/^\([^.]*\)\..*/\1/g'`
 OPENBSDMINOR=`echo $OSVER| sed 's/^[^.]*\.\(.*\)/\1/g'`
@@ -177,27 +276,6 @@ THISBASESIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDVER-base
 THISPKGSIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDVER-pkg
 NEXTBASESIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDNEXTVER-base
 NEXTPKGSIG=$SIGNIFYDIR/$SIGNATURENAME-$OPENBSDNEXTVER-pkg
-
-# log message
-# Write a message to the log, and also display it to the screen.
-# message: the message to log.
-log ()
-{
-	currentlog=`date +%s`
-	duration=`echo $currentlog - $LASTLOG | bc`
-	hours=`echo $duration / 3600 | bc`
-	remainder=`echo $duration % 3600 | bc`
-	minutes=`echo $remainder / 60 | bc`
-	seconds=`echo $remainder % 60 | bc`
-	echo "$* (`date`) Elapsed: ` printf "%02s\n" $hours`:`printf "%02s\n" $minutes`:`printf "%02s\n" $seconds`" | tee -a $BUILD_LOGFILE
-	LASTLOG=`date +%s`
-	unset currentlog
-	unset DURATION
-	unset HOURS
-	unset REMAINDER
-	unset MINUTES
-	unset SECONDS
-}
 
 # download_file [-f] [-v] filename
 # Download the file from one of the FTP servers, starting at the first host
@@ -637,16 +715,10 @@ set -e
 
 log "## Begin Build"
 
-log Uninstalling Packages
 
-while [ `pkg_info -q | grep -v -- -firmware- | wc -l ` -ne 0 ] ; do
-	pkg_delete `pkg_info -tq`
-done
-
-log Removing Old pub
-
-rm -rf $SITE_DEST
+clean
 mkdir -p $SITE_LOCATION
+mkdir -p $UNPACK_DIR
 
 # These may not be moutned, they can fail...
 set +e
@@ -663,10 +735,6 @@ if is_atleast_version 5 5 ; then
 	echo 'SIGNING_PARAMETERS=-s signify -s '$THISPKGSIG'.sec' > /etc/mk.conf
 fi
 
-log Removing unpacked sources
-rm -rf $UNPACK_DIR
-
-mkdir -p $UNPACK_DIR
 
 if [ $CHECKOUT = NO ]; then
 	 
@@ -744,26 +812,16 @@ if is_atleast_version 5 5 ; then
 	signify -S -s $THISBASESIG.sec -m SHA256 -e -x SHA256.sig
 fi
 
-cd /usr/src
-
-log Removing old /usr/src
-rm -rf *
-
 log Unpacking src
+cd /usr
 tar -xzf $SITE_LOCATION/src.tar.gz
 log Unpacking sys
 tar -xzf $SITE_LOCATION/sys.tar.gz
 
 cd /usr
-log Removing old /usr/xenocara
-rm -rf xenocara
-
 log Unpacking xenocara
 tar -xzf $SITE_LOCATION/xenocara.tar.gz
 
-
-log Removing old /usr/ports
-rm -rf ports
 
 log Unpacking ports
 tar -xzf $SITE_LOCATION/ports.tar.gz
@@ -781,7 +839,6 @@ else
 fi
 
 # Build Userland
-rm -rf /usr/obj/*
 log Start build
 cd /usr/src
 log make obj
@@ -796,7 +853,6 @@ log Finish build
 # Build X
 log Start X build
 cd /usr/xenocara
-rm -rf /usr/xobj/*
 make bootstrap
 make obj
 make build
@@ -804,20 +860,15 @@ log Finish X build
 
 log Start release
 # Build the release
-DESTDIR=/usr/dest
-RELEASEDIR=/usr/release
-export DESTDIR
-export RELEASEDIR
-
-rm -rf ${DESTDIR}
-rm -rf ${DESTDIR}-base
-rm -rf ${DESTDIR}-x
-rm -rf ${RELEASEDIR}
-mkdir -p ${DESTDIR}
-mkdir -p ${RELEASEDIR}
+mkdir -p $RELDEST
+mkdir -p $RELFINAL
 
 cd /usr/src/etc
 log make release
+DESTDIR=$RELDEST
+RELEASEDIR=$RELFINAL
+export DESTDIR
+export RELEASEDIR
 make release
 cd /usr/src/distrib/sets
 log sh checkflist
@@ -825,26 +876,21 @@ sh checkflist
 
 cp ${RELEASEDIR}/SHA256 ${CURRENT_DIR}/release.SHA256
 
-cd /usr
-
-mv dest dest-base
+mv $RELDEST $RELDESTBASE
 
 log release completed
 
 log xenocara release
-rm -rf ${DESTDIR}
-mkdir -p ${DESTDIR}
+mkdir -p $RELDEST
 cd /usr/xenocara
 log make release
 make release
 
-cd /usr
+mv $RELDEST $RELDESTX
 
-mv dest dest-x
+mv $RELDESTBASE $RELDEST
 
-mv dest-base dest
-
-cp ${RELEASEDIR}/SHA256 ${CURRENT_DIR}/xenocara.SHA256
+cp ${RELFINAL}/SHA256 ${CURRENT_DIR}/xenocara.SHA256
 
 log Create iso
 if [ -d /usr/src/distrib/$(machine -a)/iso ]; then
@@ -853,19 +899,25 @@ if [ -d /usr/src/distrib/$(machine -a)/iso ]; then
 	log make clean
 	make clean
 	log make ISO
-	make RELXDIR=${RELEASEDIR} RELDIR=${RELEASEDIR}
+	make RELXDIR=${RELFINAL} RELDIR=${RELFINAL}
 
-	cp obj/install* ${RELEASEDIR}
+	cp obj/install* ${RELFINAL}
 
-	cd ${RELEASEDIR}
+	cd ${RELFINAL}
 
 	sha256 install* > ${CURRENT_DIR}/iso.SHA256
 
 fi
 
+# RELEASEDIR and DESTDIR were causing problems with some ports
+# Clear them out, but remember RELEASEDIR
+unset RELEASEDIR
+unset DESTDIR
+
 log Finish release
 
-cd ${RELEASEDIR}
+
+cd ${RELFINAL}
 
 cat ${CURRENT_DIR}/release.SHA256 ${CURRENT_DIR}/xenocara.SHA256 ${CURRENT_DIR}/iso.SHA256 | sort > SHA256
 
@@ -874,21 +926,12 @@ if is_atleast_version 5 5 ; then
 fi
 /bin/ls -1 >index.txt
 
-rm -rf ${DESTDIR}
-rm -rf ${DESTDIR}-base
-rm -rf ${DESTDIR}-x
-
-# RELEASEDIR and DESTDIR were causing problems with some ports
-# Clear them out, but remember RELEASEDIR
-RELEASEDIRX=${RELEASEDIR}
-unset RELEASEDIR
-unset DESTDIR
-RELEASEDIR=${RELEASEDIRX}
-unset RELEASEDIRX
-
 cd ~
 mkdir -p $SITE_LOCATION/`machine -a`
-cp "${RELEASEDIR}/"* "$SITE_LOCATION/`machine -a`"
+cp "${RELFINAL}/"* "$SITE_LOCATION/`machine -a`"
+
+cleanobj
+cleanrel
 
 if [ $BUILDPORTS = YES ]; then
 
