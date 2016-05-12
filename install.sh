@@ -813,7 +813,7 @@ if is_atleast_version 5 5 ; then
 fi
 
 log Unpacking src
-cd /usr
+cd /usr/src
 tar -xzf $SITE_LOCATION/src.tar.gz
 log Unpacking sys
 tar -xzf $SITE_LOCATION/sys.tar.gz
