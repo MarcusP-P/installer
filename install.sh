@@ -404,12 +404,12 @@ update_cvs ()
 {
 	touch $CVS_LOGFILE
 	log Updating $1 
-	echo "Updating $1 (`date`)"| tee -a $CVS_LOGFILE
+	echo "Updating $1 (`date`)" >> $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r $CVS_TAG -Pd | tee -a $CVS_LOGFILE
 	log Finish updating $1 
-	echo "Finish updating $1 (`date`)" | tee -a $CVS_LOGFILE
+	echo "Finish updating $1 (`date`)" >> $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
 }
@@ -424,12 +424,12 @@ checkout_cvs ()
 {
 	touch $CVS_LOGFILE
 	log checkout $2 
-	echo "checkout $2 (`date`)"| tee -a $CVS_LOGFILE
+	echo "checkout $2 (`date`)" >> $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} co -r $CVS_TAG -P $2 | tee -a $CVS_LOGFILE
 	log Finish check out $2
-	echo "Finish check out $2 (`date`)" | tee -a $CVS_LOGFILE
+	echo "Finish check out $2 (`date`)" >> $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
 }
@@ -473,14 +473,14 @@ update_cvs_to_version ()
 	fi
 	if [ ! -d $1/$2 ]; then
 		log $1/$2 does not exist, no need to update to OPENBSD_${3}_${4}
-		echo "$1/$2 does not exist, no need to update to OPENBSD_${3}_${4} (`date`)" | tee -a $CVS_LOGFILE
+		echo "$1/$2 does not exist, no need to update to OPENBSD_${3}_${4} (`date`)" >> $CVS_LOGFILE
 
 		return 0
 	fi
 
 	touch $CVS_LOGFILE
 	log Updating $1/$2 to OPENBSD_${3}_${4}
-	echo "Updating $1/$2 to OPENBSD_${3}_${4} (`date`)" | tee -a $CVS_LOGFILE
+	echo "Updating $1/$2 to OPENBSD_${3}_${4} (`date`)" >> $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1/$2
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r OPENBSD_${3}_${4} -Pd | tee -a $CVS_LOGFILE
@@ -502,12 +502,12 @@ update_cvs_to_date ()
 
 	touch $CVS_LOGFILE
 	log Updating $1/$2 to HEAD
-	echo "Updating $1/$2 to HEAD (`date`)" | tee -a $CVS_LOGFILE
+	echo "Updating $1/$2 to HEAD (`date`)" >> $CVS_LOGFILE
 	old_pwd=`pwd`
 	cd $1/$2
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -r HEAD -Pd | tee -a $CVS_LOGFILE
 	log Updating $1/$2 to ${3}
-	echo "Updating $1/$2 to ${3} (`date`)" | tee -a $CVS_LOGFILE
+	echo "Updating $1/$2 to ${3} (`date`)" >> $CVS_LOGFILE
 	cvs -q -d ${CVS_HOSTS[$CVS_HOST_NUMBER]} update -D "${3}" -Pd | tee -a $CVS_LOGFILE
 	cd $old_pwd
 	unset old_pwd
