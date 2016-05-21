@@ -96,14 +96,12 @@ cleanwork ()
 cleansrc ()
 {
 	log Removing old sources
-	cd /usr/src
 
-	rm -rf *
+	rm -rf /usr/src/*
 
-	cd /usr
-	rm -rf xenocara
+	rm -rf /usr/xenocara
 
-	rm -rf ports
+	rm -rf /usr/ports
 	log Finish Removing old sources
 }
 
@@ -781,7 +779,8 @@ fi
 update_cvs_to_version $UNPACK_DIR/ports devel/p5-Error 5 7
 update_cvs_to_version $UNPACK_DIR/ports lang/ruby/2.0 5 7
 update_cvs_to_version $UNPACK_DIR/ports mail/p5-Email-MIME 5 9
-update_cvs_to_version $UNPACK_DIR/ports sysutils/p5-File-Which 5 9
+update_cvs_to_date $UNPACK_DIR/ports sysutils/p5-File-Which "Wed May 4 15:30:00 2016 UTC"
+update_cvs_to_date $UNPACK_DIR/ports www/ap2-mod_perl "Fri Apr 29 08:25:00 2016 UTC"
 
 # Change the download URL to the new one. We no longer need to cvs update to
 # a later version of OpenBSD's Makefile
